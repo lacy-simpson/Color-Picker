@@ -21,7 +21,7 @@
     --red: #ff4545;
     --picked: #c6ff4e;
     --picked-rgb: 198, 255, 78;
-    --picked-glow: rgba(198,255,78,0.12);
+    --picked-glow: rgba(198,255,78,0.22);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,7 +42,7 @@
   #bgAtm {
     position: fixed;
     inset: 0;
-    background: radial-gradient(ellipse 520px 360px at 50% -40px, var(--picked-glow), transparent 70%);
+    background: radial-gradient(ellipse 700px 520px at 50% 0px, var(--picked-glow), transparent 75%);
     pointer-events: none;
     z-index: 0;
     transition: background 1.2s ease;
@@ -922,6 +922,87 @@
     transition: background 0.15s, border-color 0.15s, color 0.5s;
   }
   .btn-confirm:hover { background: var(--s1); border-color: var(--picked); }
+
+  /* ── Tab navigation */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 6px 16px 9px;
+    background: none; border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    color: var(--label);
+    font-family: 'Fira Code', monospace;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { color: var(--muted2); }
+  .tab-btn.active { color: var(--picked); border-bottom-color: var(--picked); transition: color 0.5s, border-color 0.5s; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Picker palette ⋯ menu */
+  .picker-menu-wrap { position: relative; flex-shrink: 0; }
+  .picker-menu-btn {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--s1); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--muted2); font-size: 16px; cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    font-family: 'Fira Code', monospace; letter-spacing: -0.08em; padding: 0;
+  }
+  .picker-menu-btn:hover { border-color: var(--border2); color: var(--text); }
+  .picker-menu-dropdown {
+    position: absolute; right: 0; top: calc(100% + 6px);
+    background: var(--s2); border: 1px solid var(--border2);
+    border-radius: 9px; padding: 4px; min-width: 140px; z-index: 100;
+    display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+  .picker-menu-dropdown.open { display: block; }
+  .picker-menu-dropdown button {
+    display: block; width: 100%; text-align: left;
+    background: none; border: none; color: var(--muted2);
+    font-family: 'Fira Code', monospace; font-size: 11px;
+    padding: 7px 10px; border-radius: 5px;
+    cursor: pointer; transition: background 0.1s, color 0.1s; white-space: nowrap;
+  }
+  .picker-menu-dropdown button:hover { background: var(--s3); color: var(--text); }
+  .picker-menu-divider { height: 1px; background: var(--border); margin: 3px 4px; }
+
+  /* ── Picker quick-add form */
+  .picker-quick-add {
+    display: none; flex-direction: column; gap: 8px;
+    margin-top: 8px; padding: 10px 12px;
+    background: var(--s1); border: 1px solid var(--border); border-radius: 9px;
+  }
+  .picker-quick-add.open { display: flex; }
+  .picker-quick-add-header { display: flex; align-items: center; justify-content: space-between; }
+  .picker-quick-add-title { font-size: 9px; letter-spacing: 0.12em; color: var(--label); text-transform: uppercase; }
+  .picker-quick-close {
+    background: none; border: none; color: var(--label);
+    cursor: pointer; font-size: 14px; padding: 0; line-height: 1; transition: color 0.15s;
+  }
+  .picker-quick-close:hover { color: var(--text); }
+
+  /* ── Inline palette preview */
+  .palette-preview-wrap { display: none; margin-top: 8px; }
+  .palette-preview-wrap.visible { display: block; }
+  .palette-preview-swatches {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    padding: 8px; background: var(--s1);
+    border: 1px solid var(--border); border-radius: 8px;
+    min-height: 38px; align-items: center;
+  }
+  .palette-preview-empty-msg { font-size: 9px; color: var(--label); letter-spacing: 0.08em; text-transform: uppercase; }
+  .pip {
+    width: 22px; height: 22px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -937,6 +1018,13 @@
     </div>
     <span class="tagline">Color Dropper</span>
   </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-picker" onclick="switchTab('picker')">Picker</button>
+    <button class="tab-btn" id="tab-palettes" onclick="switchTab('palettes')">Palettes</button>
+  </div>
+
+  <div class="tab-panel active" id="panel-picker">
 
   <!-- PICKER + HISTORY SIDEBAR -->
   <div class="picker-history-layout">
@@ -995,10 +1083,35 @@
       </div>
 
       <div class="add-palette-row">
-        <select class="palette-select" id="paletteSelect">
+        <select class="palette-select" id="paletteSelect" onchange="renderPalettePreview()">
           <option value="">— Add to palette —</option>
         </select>
         <button class="add-to-palette-btn" id="addToPaletteBtn" onclick="addCurrentToPalette()" disabled>+ Add</button>
+        <div class="picker-menu-wrap">
+          <button class="picker-menu-btn" onclick="togglePickerMenu(event)" title="Palette options">⋯</button>
+          <div class="picker-menu-dropdown" id="pickerMenuDropdown">
+            <button onclick="openPickerQuickAdd('palette')">New Palette</button>
+            <button onclick="openPickerQuickAdd('group')">New Group</button>
+            <div class="picker-menu-divider"></div>
+            <button onclick="openImportModal()">↑ Import</button>
+          </div>
+        </div>
+      </div>
+      <div class="picker-quick-add" id="pickerQuickAdd">
+        <div class="picker-quick-add-header">
+          <span class="picker-quick-add-title" id="pickerQuickAddTitle">New Palette</span>
+          <button class="picker-quick-close" onclick="closePickerQuickAdd()">×</button>
+        </div>
+        <div class="add-input-row">
+          <input class="text-input" type="text" id="pickerQuickAddName" placeholder="Name…" maxlength="30"
+            onkeydown="if(event.key==='Enter')submitPickerQuickAdd()">
+          <button class="create-btn" onclick="submitPickerQuickAdd()">Create</button>
+        </div>
+      </div>
+      <div class="palette-preview-wrap" id="palettePreviewWrap">
+        <div class="palette-preview-swatches" id="palettePreviewSwatches">
+          <span class="palette-preview-empty-msg" id="palettePreviewEmpty">Empty palette</span>
+        </div>
       </div>
     </div>
 
@@ -1017,12 +1130,9 @@
 
   </div>
 
-  <!-- PALETTES -->
-  <div class="zone-divider" id="palettesZoneHeader" onclick="togglePalettes()">
-    <span class="zone-label">Palettes</span>
-    <div class="zone-line"></div>
-    <button class="zone-toggle" id="palettesToggle">▼</button>
-  </div>
+  </div><!-- /tab-panel picker -->
+
+  <div class="tab-panel" id="panel-palettes">
   <div id="zone-palettes">
     <div class="palette-actions-row">
       <button class="compact-btn" id="addBtn" onclick="toggleAddForm()">+ Add</button>
@@ -1049,6 +1159,7 @@
     <div id="paletteList"></div>
     <div class="empty-state" id="palettesEmpty">No palettes yet.<br>Create a group or palette above.</div>
   </div>
+  </div><!-- /tab-panel palettes -->
 
 </div><!-- .app -->
 
@@ -1157,9 +1268,9 @@ function updateTheme(hex) {
   const root = document.documentElement;
   root.style.setProperty('--picked', hex);
   root.style.setProperty('--picked-rgb', `${r}, ${g}, ${b}`);
-  root.style.setProperty('--picked-glow', `rgba(${r},${g},${b},0.14)`);
+  root.style.setProperty('--picked-glow', `rgba(${r},${g},${b},0.22)`);
   document.getElementById('bgAtm').style.background =
-    `radial-gradient(ellipse 520px 360px at 50% -40px, rgba(${r},${g},${b},0.13), transparent 70%)`;
+    `radial-gradient(ellipse 700px 520px at 50% 0px, rgba(${r},${g},${b},0.20), transparent 75%)`;
   const dot = document.getElementById('wordmarkDot');
   if (dot) dot.style.background = hex;
 }
@@ -1470,6 +1581,7 @@ function addCurrentToPalette() {
   p.colors.push(currentColor);
   savePalettes();
   renderPalettes();
+  renderPalettePreview();
   showToast(`Added to "${p.name}"`);
 }
 function copyPaletteHex(id) {
@@ -2039,21 +2151,88 @@ function submitAdd() {
   btn.textContent = '+ Add';
 }
 
-// ── Palettes collapse
-let palettesCollapsed = JSON.parse(localStorage.getItem('palettes_collapsed') || 'false');
-function togglePalettes() {
-  palettesCollapsed = !palettesCollapsed;
-  localStorage.setItem('palettes_collapsed', palettesCollapsed);
-  applyPalettesCollapse();
+// ── Tab navigation
+function switchTab(name) {
+  ['picker','palettes'].forEach(t => {
+    document.getElementById('panel-' + t).classList.toggle('active', t === name);
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+  });
 }
-function applyPalettesCollapse() {
-  const zone = document.getElementById('zone-palettes');
-  const btn  = document.getElementById('palettesToggle');
-  const hdr  = document.getElementById('palettesZoneHeader');
-  zone.style.display = palettesCollapsed ? 'none' : 'block';
-  btn.textContent    = palettesCollapsed ? '▶' : '▼';
-  if (palettesCollapsed) hdr.classList.add('zone-collapsed');
-  else hdr.classList.remove('zone-collapsed');
+
+// ── Picker palette ⋯ menu
+function togglePickerMenu(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('pickerMenuDropdown');
+  dd.classList.toggle('open');
+}
+function closePickerMenu() {
+  document.getElementById('pickerMenuDropdown').classList.remove('open');
+}
+document.addEventListener('click', closePickerMenu);
+
+// ── Picker quick-add
+let pickerQuickAddType = 'palette';
+function openPickerQuickAdd(type) {
+  pickerQuickAddType = type;
+  document.getElementById('pickerQuickAddTitle').textContent = type === 'group' ? 'New Group' : 'New Palette';
+  document.getElementById('pickerQuickAddName').placeholder = type === 'group' ? 'Group name…' : 'Palette name…';
+  document.getElementById('pickerQuickAdd').classList.add('open');
+  document.getElementById('pickerQuickAddName').focus();
+  closePickerMenu();
+}
+function closePickerQuickAdd() {
+  document.getElementById('pickerQuickAdd').classList.remove('open');
+  document.getElementById('pickerQuickAddName').value = '';
+}
+function submitPickerQuickAdd() {
+  const input = document.getElementById('pickerQuickAddName');
+  const name  = input.value.trim();
+  if (!name) { input.focus(); return; }
+  if (pickerQuickAddType === 'group') {
+    groups.push({ id: Date.now().toString(36), name, paletteIds: [], collapsed: false });
+    saveGroups();
+    showToast('Group created');
+  } else {
+    const id = Date.now().toString(36);
+    palettes.push({ id, name, colors: [] });
+    savePalettes();
+    renderPalettes();
+    refreshPaletteSelect();
+    document.getElementById('paletteSelect').value = id;
+    renderPalettePreview();
+    showToast('Palette created');
+    closePickerQuickAdd();
+    return;
+  }
+  renderPalettes();
+  refreshPaletteSelect();
+  closePickerQuickAdd();
+}
+
+// ── Inline palette preview
+function renderPalettePreview() {
+  const id   = document.getElementById('paletteSelect').value;
+  const wrap = document.getElementById('palettePreviewWrap');
+  const box  = document.getElementById('palettePreviewSwatches');
+  const empty = document.getElementById('palettePreviewEmpty');
+  if (!id) { wrap.classList.remove('visible'); return; }
+  const p = palettes.find(p => p.id === id);
+  if (!p) { wrap.classList.remove('visible'); return; }
+  wrap.classList.add('visible');
+  box.innerHTML = '';
+  if (!p.colors.length) {
+    empty.style.display = '';
+    box.appendChild(empty);
+    return;
+  }
+  empty.style.display = 'none';
+  p.colors.forEach(hex => {
+    const pip = document.createElement('div');
+    pip.className = 'pip';
+    pip.style.background = hex;
+    pip.title = hex.toUpperCase();
+    box.appendChild(pip);
+  });
 }
 
 // ── Init
@@ -2067,7 +2246,6 @@ renderPalettes();
 refreshPaletteSelect();
 initColorEditor();
 editorRefresh();
-applyPalettesCollapse();
 </script>
 </body>
 </html>
