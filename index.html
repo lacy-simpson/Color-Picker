@@ -102,39 +102,49 @@
     text-transform: uppercase;
   }
 
-  /* ── Tabs ── */
-  .tabs {
+  /* ── Zone dividers ── */
+  .zone-divider {
     display: flex;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border);
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 16px;
+  }
+  .zone-label {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--label);
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .zone-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .zone-actions {
+    display: none;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
-  .tab {
-    padding: 8px 16px;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    font-family: 'Fira Code', monospace;
-    font-size: 11px;
+  /* ── History rail ── */
+  .history-rail {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    min-height: 36px;
+  }
+  .history-rail::-webkit-scrollbar { display: none; }
+  .history-rail .h-swatch { flex-shrink: 0; }
+  .history-empty {
+    font-size: 10px;
+    color: var(--label);
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    cursor: pointer;
-    position: relative;
-    transition: color 0.15s;
+    padding: 8px 0;
   }
-  .tab.active { color: var(--text); }
-  .tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px; left: 0; right: 0;
-    height: 1px;
-    background: var(--picked);
-    transition: background 0.5s ease;
-  }
-  .tab:hover:not(.active) { color: var(--muted2); }
-
-  .panel { display: none; }
-  .panel.active { display: block; }
 
   /* ── Swatch Hero ── */
   .swatch-hero {
@@ -861,14 +871,8 @@
     <span class="tagline">Color Dropper</span>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('picker')">Picker</button>
-    <button class="tab" onclick="switchTab('history')">History</button>
-    <button class="tab" onclick="switchTab('palettes')">Palettes</button>
-  </div>
-
   <!-- PICKER -->
-  <div class="panel active" id="panel-picker">
+  <div id="zone-picker">
 
     <div class="swatch-hero" id="mainSwatch">
       <div class="swatch-hero-hex" id="swatchHex"></div>
@@ -933,20 +937,25 @@
   </div>
 
   <!-- HISTORY -->
-  <div class="panel" id="panel-history">
-    <div class="section-header" id="historyHeader" style="display:none">
-      <span class="section-title">Recent Colors</span>
-      <div class="section-actions">
-        <button class="link-btn" id="editHistoryBtn" onclick="toggleEditHistory()">Edit</button>
-        <button class="link-btn" onclick="confirmClearHistory()">Clear All</button>
-      </div>
+  <div class="zone-divider">
+    <span class="zone-label">History</span>
+    <div class="zone-line"></div>
+    <div class="zone-actions" id="historyActions">
+      <button class="link-btn" id="editHistoryBtn" onclick="toggleEditHistory()">Edit</button>
+      <button class="link-btn" onclick="confirmClearHistory()">Clear</button>
     </div>
-    <div class="swatch-row" id="historySwatches"></div>
-    <div class="empty-state" id="historyEmpty">No colors picked yet.<br>Use the Picker to get started.</div>
+  </div>
+  <div id="zone-history">
+    <div class="history-rail" id="historySwatches"></div>
+    <div class="history-empty" id="historyEmpty">No colors picked yet</div>
   </div>
 
   <!-- PALETTES -->
-  <div class="panel" id="panel-palettes">
+  <div class="zone-divider">
+    <span class="zone-label">Palettes</span>
+    <div class="zone-line"></div>
+  </div>
+  <div id="zone-palettes">
     <div class="new-group-form">
       <input class="text-input" type="text" id="newGroupName" placeholder="New group name…" maxlength="30"
         onkeydown="if(event.key==='Enter')createGroup()">
@@ -962,7 +971,7 @@
     <div class="empty-state" id="palettesEmpty">No palettes yet.<br>Create a group or palette above.</div>
   </div>
 
-</div>
+</div><!-- .app -->
 
 <!-- Modal -->
 <div class="modal-overlay" id="confirmModal" onclick="if(event.target===this)closeModal()">
@@ -1076,13 +1085,9 @@ function updateTheme(hex) {
   if (dot) dot.style.background = hex;
 }
 
-// ── Tabs
-function switchTab(name) {
-  const names = ['picker','history','palettes'];
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i]===name));
-  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id==='panel-'+name));
-  if(name==='history') renderHistory();
-  if(name==='palettes') renderPalettes();
+// ── Scroll to zone
+function scrollToZone(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Picker
@@ -1169,20 +1174,20 @@ function toggleEditHistory() {
 }
 function renderHistory() {
   const container = document.getElementById('historySwatches');
-  const header    = document.getElementById('historyHeader');
+  const actions   = document.getElementById('historyActions');
   const empty     = document.getElementById('historyEmpty');
   container.innerHTML = '';
-  if(colorHistory.length===0){
-    header.style.display='none';
-    empty.style.display='block';
-    editingHistory=false;
+  if (colorHistory.length === 0) {
+    actions.style.display = 'none';
+    empty.style.display = 'block';
+    editingHistory = false;
     return;
   }
-  header.style.display='flex';
-  empty.style.display='none';
-  if(editingHistory) container.classList.add('edit-mode');
+  actions.style.display = 'flex';
+  empty.style.display = 'none';
+  if (editingHistory) container.classList.add('edit-mode');
   else container.classList.remove('edit-mode');
-  colorHistory.forEach(hex=>{
+  colorHistory.forEach(hex => {
     const sw = document.createElement('div');
     sw.className = 'h-swatch';
     sw.style.background = hex;
@@ -1193,9 +1198,9 @@ function renderHistory() {
     const x = document.createElement('div');
     x.className = 'remove-x';
     x.textContent = '×';
-    x.onclick = (e)=>{ e.stopPropagation(); removeFromHistory(hex); };
+    x.onclick = (e) => { e.stopPropagation(); removeFromHistory(hex); };
     sw.appendChild(x);
-    if(!editingHistory) sw.onclick = ()=>{ setColor(hex); switchTab('picker'); };
+    if (!editingHistory) sw.onclick = () => setColor(hex);
     container.appendChild(sw);
   });
 }
@@ -1528,7 +1533,7 @@ function renderPaletteCard(p) {
       x.className = 'remove-x'; x.textContent = '×';
       x.onclick = (e) => { e.stopPropagation(); removeColorFromPalette(p.id, i); };
       s.appendChild(x);
-      s.onclick = () => { setColor(hex); switchTab('picker'); };
+      s.onclick = () => { setColor(hex); scrollToZone('zone-picker'); };
       sw.appendChild(s);
     });
   }
@@ -1921,6 +1926,8 @@ if(!window.EyeDropper){
   document.getElementById('unsupported').style.display='block';
   document.getElementById('pickBtn').disabled=true;
 }
+renderHistory();
+renderPalettes();
 refreshPaletteSelect();
 initColorEditor();
 editorRefresh();
