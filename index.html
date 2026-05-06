@@ -470,6 +470,57 @@
   }
   .h-swatch:hover .hex-tip { opacity: 1; }
 
+  /* ── Groups ── */
+  .new-group-form { display: flex; gap: 8px; margin-bottom: 8px; }
+  .group-section { margin-bottom: 12px; }
+  .group-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    background: var(--s2); border: 1px solid var(--border2);
+    border-radius: 10px;
+    transition: border-radius 0.15s;
+  }
+  .group-header.expanded { border-radius: 10px 10px 0 0; }
+  .group-toggle {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 10px; padding: 2px 4px;
+    flex-shrink: 0; line-height: 1; transition: color 0.15s;
+  }
+  .group-toggle:hover { color: var(--text); }
+  .group-name-input {
+    font-family: 'Fira Code', monospace; font-size: 12px; font-weight: 700;
+    color: var(--text); border: 1px solid transparent; background: transparent;
+    outline: none; width: 100%; padding: 2px 6px; border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .group-name-input:hover { border-color: var(--border); background: var(--s1); }
+  .group-name-input:focus { border-color: var(--border2); background: var(--s1); }
+  .group-count {
+    font-size: 10px; color: var(--muted); white-space: nowrap; flex-shrink: 0;
+  }
+  .group-body {
+    border: 1px solid var(--border2); border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .group-body .palette-card { margin-bottom: 0; }
+  .group-empty {
+    font-size: 11px; color: var(--muted); text-align: center;
+    padding: 16px; font-family: 'Fira Code', monospace; letter-spacing: 0.06em;
+  }
+  .ungrouped-label {
+    font-size: 10px; letter-spacing: 0.14em;
+    color: var(--label); text-transform: uppercase; margin: 16px 0 8px;
+  }
+  .group-assign-select {
+    background: var(--s2); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 5px; padding: 3px 8px;
+    font-family: 'Fira Code', monospace; font-size: 9px;
+    cursor: pointer; outline: none; transition: border-color 0.15s;
+    max-width: 100px;
+  }
+  .group-assign-select:focus { border-color: var(--border2); color: var(--text); }
+
   /* ── Palettes ── */
   .new-palette-form { display: flex; gap: 8px; margin-bottom: 20px; }
   .text-input {
@@ -860,14 +911,19 @@
 
   <!-- PALETTES -->
   <div class="panel" id="panel-palettes">
+    <div class="new-group-form">
+      <input class="text-input" type="text" id="newGroupName" placeholder="New group name…" maxlength="30"
+        onkeydown="if(event.key==='Enter')createGroup()">
+      <button class="create-btn" onclick="createGroup()">+ Group</button>
+    </div>
     <div class="new-palette-form">
       <input class="text-input" type="text" id="newPaletteName" placeholder="New palette name…" maxlength="30"
         onkeydown="if(event.key==='Enter')createPalette()">
-      <button class="create-btn" onclick="createPalette()">Create</button>
+      <button class="create-btn" onclick="createPalette()">+ Palette</button>
     </div>
     <button class="import-palette-btn" onclick="openImportModal()">↑ Import Palette</button>
     <div id="paletteList"></div>
-    <div class="empty-state" id="palettesEmpty">No palettes yet.<br>Create one above.</div>
+    <div class="empty-state" id="palettesEmpty">No palettes yet.<br>Create a group or palette above.</div>
   </div>
 
 </div>
@@ -932,19 +988,23 @@
 // ── Storage keys
 const LS_HISTORY  = 'dropper_history_v1';
 const LS_PALETTES = 'dropper_palettes_v1';
+const LS_GROUPS   = 'dropper_groups_v1';
 
 // ── State
 let currentColor = null;
 let colorHistory = [];
 let palettes = [];
+let groups = [];
 let editingHistory = false;
 
 function loadAll() {
   try { colorHistory = JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch { colorHistory = []; }
   try { palettes = JSON.parse(localStorage.getItem(LS_PALETTES)) || []; } catch { palettes = []; }
+  try { groups = JSON.parse(localStorage.getItem(LS_GROUPS)) || []; } catch { groups = []; }
 }
 function saveHistory()  { localStorage.setItem(LS_HISTORY,  JSON.stringify(colorHistory)); }
 function savePalettes() { localStorage.setItem(LS_PALETTES, JSON.stringify(palettes)); }
+function saveGroups()   { localStorage.setItem(LS_GROUPS,   JSON.stringify(groups)); }
 
 // ── Color math
 function hexToRgb(hex) {
@@ -1104,6 +1164,104 @@ function renderHistory() {
   });
 }
 
+// ── Groups
+function createGroup() {
+  const input = document.getElementById('newGroupName');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  groups.push({ id: Date.now().toString(36), name, paletteIds: [], collapsed: false });
+  saveGroups();
+  input.value = '';
+  renderPalettes();
+  showToast('Group created');
+}
+function deleteGroup(id) {
+  const g = groups.find(g => g.id === id);
+  showModal('Delete Group', `Delete "${g?.name}"? Palettes inside will become ungrouped.`, () => {
+    groups = groups.filter(g => g.id !== id);
+    saveGroups();
+    renderPalettes();
+    refreshPaletteSelect();
+    closeModal();
+  });
+}
+function renameGroup(id, name) {
+  const g = groups.find(g => g.id === id);
+  if (g && name.trim()) { g.name = name.trim(); saveGroups(); refreshPaletteSelect(); }
+}
+function toggleGroup(id) {
+  const g = groups.find(g => g.id === id);
+  if (g) { g.collapsed = !g.collapsed; saveGroups(); renderPalettes(); }
+}
+function getPaletteGroupId(paletteId) {
+  return groups.find(g => g.paletteIds.includes(paletteId))?.id || null;
+}
+function assignPaletteToGroup(paletteId, groupId) {
+  groups.forEach(g => { g.paletteIds = g.paletteIds.filter(id => id !== paletteId); });
+  if (groupId) {
+    const g = groups.find(g => g.id === groupId);
+    if (g) g.paletteIds.push(paletteId);
+  }
+  saveGroups();
+  renderPalettes();
+  refreshPaletteSelect();
+}
+function renderGroupSection(g) {
+  const section = document.createElement('div');
+  section.className = 'group-section';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'group-header' + (g.collapsed ? '' : ' expanded');
+
+  const toggle = document.createElement('button');
+  toggle.className = 'group-toggle';
+  toggle.textContent = g.collapsed ? '▶' : '▼';
+  toggle.onclick = () => toggleGroup(g.id);
+
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'palette-name-wrap';
+  const nameEl = document.createElement('input');
+  nameEl.className = 'group-name-input'; nameEl.type = 'text';
+  nameEl.value = g.name; nameEl.maxLength = 30;
+  nameEl.onchange = () => renameGroup(g.id, nameEl.value || g.name);
+  nameEl.onkeydown = (e) => { if (e.key === 'Enter') nameEl.blur(); };
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'rename-btn'; renameBtn.title = 'Rename group'; renameBtn.textContent = '✎';
+  renameBtn.onclick = () => { nameEl.focus(); nameEl.select(); };
+  nameWrap.appendChild(nameEl);
+  nameWrap.appendChild(renameBtn);
+
+  const groupPalettes = g.paletteIds.map(id => palettes.find(p => p.id === id)).filter(Boolean);
+  const count = document.createElement('span');
+  count.className = 'group-count';
+  count.textContent = `${groupPalettes.length} palette${groupPalettes.length !== 1 ? 's' : ''}`;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'icon-btn'; delBtn.textContent = 'Delete';
+  delBtn.onclick = () => deleteGroup(g.id);
+
+  hdr.appendChild(toggle);
+  hdr.appendChild(nameWrap);
+  hdr.appendChild(count);
+  hdr.appendChild(delBtn);
+  section.appendChild(hdr);
+
+  if (!g.collapsed) {
+    const body = document.createElement('div');
+    body.className = 'group-body';
+    if (!groupPalettes.length) {
+      const hint = document.createElement('div');
+      hint.className = 'group-empty';
+      hint.textContent = 'No palettes yet — assign one using the group dropdown on any palette.';
+      body.appendChild(hint);
+    } else {
+      groupPalettes.forEach(p => body.appendChild(renderPaletteCard(p)));
+    }
+    section.appendChild(body);
+  }
+  return section;
+}
+
 // ── Palettes
 function createPalette() {
   const input = document.getElementById('newPaletteName');
@@ -1120,7 +1278,8 @@ function deletePalette(id) {
   const p = palettes.find(p=>p.id===id);
   showModal('Delete Palette', `Delete "${p?.name}"? This cannot be undone.`, ()=>{
     palettes = palettes.filter(p=>p.id!==id);
-    savePalettes();
+    groups.forEach(g => { g.paletteIds = g.paletteIds.filter(pid => pid !== id); });
+    savePalettes(); saveGroups();
     renderPalettes();
     refreshPaletteSelect();
     closeModal();
@@ -1155,108 +1314,146 @@ function refreshPaletteSelect() {
   const sel = document.getElementById('paletteSelect');
   const prev = sel.value;
   sel.innerHTML = '<option value="">— Add to palette —</option>';
-  palettes.forEach(p=>{
-    const o = document.createElement('option');
-    o.value=p.id; o.textContent=p.name;
-    sel.appendChild(o);
+  groups.forEach(g => {
+    const gPalettes = g.paletteIds.map(id => palettes.find(p => p.id === id)).filter(Boolean);
+    if (!gPalettes.length) return;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = g.name;
+    gPalettes.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      optgroup.appendChild(o);
+    });
+    sel.appendChild(optgroup);
   });
+  const ungrouped = palettes.filter(p => !getPaletteGroupId(p.id));
+  if (ungrouped.length) {
+    if (groups.length) {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = 'Ungrouped';
+      ungrouped.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id; o.textContent = p.name;
+        optgroup.appendChild(o);
+      });
+      sel.appendChild(optgroup);
+    } else {
+      ungrouped.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id; o.textContent = p.name;
+        sel.appendChild(o);
+      });
+    }
+  }
   if(prev) sel.value=prev;
+}
+function renderPaletteCard(p) {
+  const card = document.createElement('div');
+  card.className='palette-card';
+  const hdr = document.createElement('div');
+  hdr.className='palette-card-header';
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'palette-name-wrap';
+  const nameEl = document.createElement('input');
+  nameEl.className='palette-name'; nameEl.type='text';
+  nameEl.value=p.name; nameEl.maxLength=30;
+  nameEl.onchange=()=>renamePalette(p.id, nameEl.value||p.name);
+  nameEl.onkeydown=(e)=>{ if(e.key==='Enter') nameEl.blur(); };
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'rename-btn'; renameBtn.title = 'Rename palette'; renameBtn.textContent = '✎';
+  renameBtn.onclick = () => { nameEl.focus(); nameEl.select(); };
+  nameWrap.appendChild(nameEl);
+  nameWrap.appendChild(renameBtn);
+  const acts = document.createElement('div');
+  acts.className='palette-card-actions';
+  if (groups.length) {
+    const groupSel = document.createElement('select');
+    groupSel.className = 'group-assign-select';
+    groupSel.title = 'Assign to group';
+    const noOpt = document.createElement('option');
+    noOpt.value = ''; noOpt.textContent = 'No group';
+    groupSel.appendChild(noOpt);
+    groups.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.id; opt.textContent = g.name;
+      groupSel.appendChild(opt);
+    });
+    const currentGroupId = getPaletteGroupId(p.id);
+    if (currentGroupId) groupSel.value = currentGroupId;
+    groupSel.onchange = () => assignPaletteToGroup(p.id, groupSel.value);
+    acts.appendChild(groupSel);
+  }
+  const copyBtn = document.createElement('button');
+  copyBtn.className='icon-btn copy-icon'; copyBtn.textContent='Copy HEX';
+  copyBtn.onclick=()=>copyPaletteHex(p.id);
+  const csvBtn = document.createElement('button');
+  csvBtn.className='icon-btn export-icon'; csvBtn.textContent='CSV'; csvBtn.title='Export as CSV';
+  csvBtn.onclick=()=>exportPaletteAsCsv(p.id);
+  const jsonBtn = document.createElement('button');
+  jsonBtn.className='icon-btn export-icon'; jsonBtn.textContent='JSON'; jsonBtn.title='Export as JSON';
+  jsonBtn.onclick=()=>exportPaletteAsJson(p.id);
+  const delBtn = document.createElement('button');
+  delBtn.className='icon-btn'; delBtn.textContent='Delete';
+  delBtn.onclick=()=>deletePalette(p.id);
+  acts.appendChild(copyBtn);
+  acts.appendChild(csvBtn);
+  acts.appendChild(jsonBtn);
+  acts.appendChild(delBtn);
+  hdr.appendChild(nameWrap);
+  hdr.appendChild(acts);
+  card.appendChild(hdr);
+  const sw = document.createElement('div');
+  sw.className='palette-swatches';
+  if(!p.colors.length){
+    const hint=document.createElement('span');
+    hint.style.cssText='font-family:Fira Code,monospace;font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;align-self:center;';
+    hint.textContent='Pick a color, then add it here';
+    sw.appendChild(hint);
+  } else {
+    p.colors.forEach((hex,i)=>{
+      const s=document.createElement('div');
+      s.className='p-swatch'; s.style.background=hex;
+      const tip=document.createElement('div');
+      tip.className='hex-tip'; tip.textContent=hex.toUpperCase();
+      s.appendChild(tip);
+      const x=document.createElement('div');
+      x.className='remove-x'; x.textContent='×';
+      x.onclick=(e)=>{e.stopPropagation();removeColorFromPalette(p.id,i);};
+      s.appendChild(x);
+      s.onclick=()=>{setColor(hex);switchTab('picker');};
+      sw.appendChild(s);
+    });
+  }
+  card.appendChild(sw);
+  if(p.colors.length){
+    const bar=document.createElement('div');
+    bar.className='palette-bar';
+    p.colors.forEach(hex=>{
+      const seg=document.createElement('div');
+      seg.className='palette-bar-seg'; seg.style.background=hex;
+      bar.appendChild(seg);
+    });
+    card.appendChild(bar);
+  }
+  return card;
 }
 function renderPalettes() {
   const list  = document.getElementById('paletteList');
   const empty = document.getElementById('palettesEmpty');
   list.innerHTML='';
-  if(!palettes.length){ empty.style.display='block'; return; }
+  if(!palettes.length && !groups.length){ empty.style.display='block'; return; }
   empty.style.display='none';
-  palettes.forEach(p=>{
-    const card = document.createElement('div');
-    card.className='palette-card';
-    const hdr = document.createElement('div');
-    hdr.className='palette-card-header';
-    const nameWrap = document.createElement('div');
-    nameWrap.className = 'palette-name-wrap';
-
-    const nameEl = document.createElement('input');
-    nameEl.className='palette-name'; nameEl.type='text';
-    nameEl.value=p.name; nameEl.maxLength=30;
-    nameEl.onchange=()=>renamePalette(p.id, nameEl.value||p.name);
-    nameEl.onkeydown=(e)=>{ if(e.key==='Enter') nameEl.blur(); };
-
-    const renameBtn = document.createElement('button');
-    renameBtn.className = 'rename-btn';
-    renameBtn.title = 'Rename palette';
-    renameBtn.textContent = '✎';
-    renameBtn.onclick = () => { nameEl.focus(); nameEl.select(); };
-
-    nameWrap.appendChild(nameEl);
-    nameWrap.appendChild(renameBtn);
-
-    const acts = document.createElement('div');
-    acts.className='palette-card-actions';
-    const copyBtn = document.createElement('button');
-    copyBtn.className='icon-btn copy-icon';
-    copyBtn.textContent='Copy HEX';
-    copyBtn.onclick=()=>copyPaletteHex(p.id);
-    const csvBtn = document.createElement('button');
-    csvBtn.className='icon-btn export-icon';
-    csvBtn.textContent='CSV';
-    csvBtn.title='Export as CSV';
-    csvBtn.onclick=()=>exportPaletteAsCsv(p.id);
-    const jsonBtn = document.createElement('button');
-    jsonBtn.className='icon-btn export-icon';
-    jsonBtn.textContent='JSON';
-    jsonBtn.title='Export as JSON';
-    jsonBtn.onclick=()=>exportPaletteAsJson(p.id);
-    const delBtn = document.createElement('button');
-    delBtn.className='icon-btn';
-    delBtn.textContent='Delete';
-    delBtn.onclick=()=>deletePalette(p.id);
-    acts.appendChild(copyBtn);
-    acts.appendChild(csvBtn);
-    acts.appendChild(jsonBtn);
-    acts.appendChild(delBtn);
-    hdr.appendChild(nameWrap);
-    hdr.appendChild(acts);
-    card.appendChild(hdr);
-    const sw = document.createElement('div');
-    sw.className='palette-swatches';
-    if(!p.colors.length){
-      const hint=document.createElement('span');
-      hint.style.cssText='font-family:Fira Code,monospace;font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;align-self:center;';
-      hint.textContent='Pick a color, then add it here';
-      sw.appendChild(hint);
-    } else {
-      p.colors.forEach((hex,i)=>{
-        const s=document.createElement('div');
-        s.className='p-swatch';
-        s.style.background=hex;
-        const tip=document.createElement('div');
-        tip.className='hex-tip';
-        tip.textContent=hex.toUpperCase();
-        s.appendChild(tip);
-        const x=document.createElement('div');
-        x.className='remove-x';
-        x.textContent='×';
-        x.onclick=(e)=>{e.stopPropagation();removeColorFromPalette(p.id,i);};
-        s.appendChild(x);
-        s.onclick=()=>{setColor(hex);switchTab('picker');};
-        sw.appendChild(s);
-      });
+  groups.forEach(g => list.appendChild(renderGroupSection(g)));
+  const ungrouped = palettes.filter(p => !getPaletteGroupId(p.id));
+  if (ungrouped.length) {
+    if (groups.length) {
+      const lbl = document.createElement('div');
+      lbl.className = 'ungrouped-label';
+      lbl.textContent = 'Ungrouped';
+      list.appendChild(lbl);
     }
-    card.appendChild(sw);
-    if(p.colors.length){
-      const bar=document.createElement('div');
-      bar.className='palette-bar';
-      p.colors.forEach(hex=>{
-        const seg=document.createElement('div');
-        seg.className='palette-bar-seg';
-        seg.style.background=hex;
-        bar.appendChild(seg);
-      });
-      card.appendChild(bar);
-    }
-    list.appendChild(card);
-  });
+    ungrouped.forEach(p => list.appendChild(renderPaletteCard(p)));
+  }
 }
 
 // ── Modal
