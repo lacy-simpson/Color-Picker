@@ -2214,18 +2214,19 @@ function renderPalettePreview() {
   const id   = document.getElementById('paletteSelect').value;
   const wrap = document.getElementById('palettePreviewWrap');
   const box  = document.getElementById('palettePreviewSwatches');
-  const empty = document.getElementById('palettePreviewEmpty');
   if (!id) { wrap.classList.remove('visible'); return; }
   const p = palettes.find(p => p.id === id);
   if (!p) { wrap.classList.remove('visible'); return; }
   wrap.classList.add('visible');
-  box.innerHTML = '';
+  // Remove only pip swatches — keep the empty message element in the DOM so
+  // getElementById can always find it on subsequent calls
+  box.querySelectorAll('.pip').forEach(el => el.remove());
+  const empty = box.querySelector('.palette-preview-empty-msg');
   if (!p.colors.length) {
-    empty.style.display = '';
-    box.appendChild(empty);
+    if (empty) empty.style.display = '';
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
   p.colors.forEach(hex => {
     const pip = document.createElement('div');
     pip.className = 'pip';
