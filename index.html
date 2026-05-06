@@ -1200,13 +1200,13 @@
     </div>
 
     <div class="import-method" id="import-method-json">
-      <input class="import-name" type="text" id="importJsonName" placeholder="Palette name (auto-filled from file)…" maxlength="30">
+      <input class="import-name" type="text" id="importJsonName" placeholder="Name (auto-filled from file)…" maxlength="30">
       <div class="import-file-area">
         <input type="file" accept=".json,application/json" id="importJsonFile" onchange="onFileSelected(this,'json')">
         <span class="import-file-label">Click to select JSON file</span>
         <div class="import-file-name" id="jsonFileName"></div>
       </div>
-      <p class="import-note">Accepts {"name":"…","colors":["#…"]} or a plain array ["#…"].</p>
+      <p class="import-note">Accepts a single palette {"name":"…","colors":["#…"]}, a plain array ["#…"], or a group export {"name":"…","palettes":[…]}.</p>
     </div>
 
     <div class="modal-actions" style="margin-top:18px">
@@ -2064,14 +2064,35 @@ function doImport() {
     if (!colors.length) { showToast('No valid hex codes in CSV'); return; }
 
   } else if (importMethod === 'json') {
+    if (!jsonFileContent) { showToast('Select a JSON file first'); return; }
+    let parsed;
+    try { parsed = JSON.parse(jsonFileContent); } catch { showToast('Invalid JSON file'); return; }
+
+    // Group format: { name, palettes: [{name, colors}, …] }
+    if (!Array.isArray(parsed) && Array.isArray(parsed.palettes)) {
+      const groupName = (document.getElementById('importJsonName').value.trim() || parsed.name || '').trim();
+      if (!groupName) { showToast('Enter a group name'); return; }
+      const imported = parsed.palettes
+        .map(p => ({ name: p.name || 'Untitled', colors: extractHexCodes((p.colors || []).join(' ')) }))
+        .filter(p => p.colors.length);
+      if (!imported.length) { showToast('No valid palettes found in group JSON'); return; }
+      const paletteIds = imported.map((p, i) => {
+        const id = (Date.now() + i).toString(36);
+        palettes.push({ id, name: p.name, colors: p.colors });
+        return id;
+      });
+      groups.push({ id: Date.now().toString(36), name: groupName, paletteIds, collapsed: false });
+      savePalettes(); saveGroups(); renderPalettes(); refreshPaletteSelect();
+      closeImportModal(); switchTab('palettes');
+      showToast(`Imported group "${groupName}" — ${paletteIds.length} palette${paletteIds.length !== 1 ? 's' : ''}`);
+      return;
+    }
+
+    // Single palette format: { name, colors } or plain array
     name = document.getElementById('importJsonName').value.trim();
     if (!name) { showToast('Enter a palette name'); return; }
-    if (!jsonFileContent) { showToast('Select a JSON file first'); return; }
-    try {
-      const parsed = JSON.parse(jsonFileContent);
-      const raw = Array.isArray(parsed) ? parsed : (parsed.colors || []);
-      colors = extractHexCodes(raw.join(' '));
-    } catch { showToast('Invalid JSON file'); return; }
+    const raw = Array.isArray(parsed) ? parsed : (parsed.colors || []);
+    colors = extractHexCodes(raw.join(' '));
     if (!colors.length) { showToast('No valid hex codes in JSON'); return; }
   }
 
