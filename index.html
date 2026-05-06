@@ -512,14 +512,50 @@
     font-size: 10px; letter-spacing: 0.14em;
     color: var(--label); text-transform: uppercase; margin: 16px 0 8px;
   }
-  .group-assign-select {
-    background: var(--s2); border: 1px solid var(--border);
-    color: var(--muted); border-radius: 5px; padding: 3px 8px;
-    font-family: 'Fira Code', monospace; font-size: 9px;
-    cursor: pointer; outline: none; transition: border-color 0.15s;
-    max-width: 100px;
+  /* ── Palette / Group ⋯ menu ── */
+  .palette-menu-wrap { position: relative; flex-shrink: 0; }
+  .palette-menu-btn {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    font-size: 16px; line-height: 1; letter-spacing: 3px;
+    transition: color 0.15s, background 0.15s;
+    font-family: 'Fira Code', monospace;
   }
-  .group-assign-select:focus { border-color: var(--border2); color: var(--text); }
+  .palette-menu-btn:hover { color: var(--text); background: var(--s2); }
+  .palette-menu-dropdown {
+    display: none; position: absolute; right: 0; top: calc(100% + 6px);
+    background: var(--s3); border: 1px solid var(--border2);
+    border-radius: 10px; padding: 6px;
+    min-width: 195px; z-index: 50;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  }
+  .palette-menu-dropdown.open { display: block; }
+  .menu-section-label {
+    font-size: 9px; letter-spacing: 0.14em; color: var(--label);
+    text-transform: uppercase; padding: 6px 8px 4px;
+    font-family: 'Fira Code', monospace;
+  }
+  .menu-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px; border-radius: 6px; width: 100%;
+    font-size: 11px; color: var(--muted2); cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+    border: none; background: none;
+    font-family: 'Fira Code', monospace; text-align: left;
+    letter-spacing: 0.04em;
+  }
+  .menu-item:hover { background: var(--s2); color: var(--text); }
+  .menu-item.danger { color: var(--muted); }
+  .menu-item.danger:hover { background: rgba(255,69,69,0.1); color: var(--red); }
+  .menu-divider { height: 1px; background: var(--border); margin: 4px 2px; }
+  .menu-group-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 6px; cursor: pointer;
+    transition: background 0.1s;
+  }
+  .menu-group-row:hover { background: var(--s2); }
+  .menu-group-row input[type="checkbox"] { accent-color: var(--picked); cursor: pointer; flex-shrink: 0; }
+  .menu-group-row label { font-size: 11px; color: var(--muted2); cursor: pointer; font-family: 'Fira Code', monospace; }
 
   /* ── Palettes ── */
   .new-palette-form { display: flex; gap: 8px; margin-bottom: 20px; }
@@ -1164,6 +1200,20 @@ function renderHistory() {
   });
 }
 
+// ── Menu helpers
+function closeAllMenus() {
+  document.querySelectorAll('.palette-menu-dropdown.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', closeAllMenus);
+
+function toggleMenu(menuId, e) {
+  e.stopPropagation();
+  const menu = document.getElementById(menuId);
+  const isOpen = menu.classList.contains('open');
+  closeAllMenus();
+  if (!isOpen) menu.classList.add('open');
+}
+
 // ── Groups
 function createGroup() {
   const input = document.getElementById('newGroupName');
@@ -1193,15 +1243,26 @@ function toggleGroup(id) {
   const g = groups.find(g => g.id === id);
   if (g) { g.collapsed = !g.collapsed; saveGroups(); renderPalettes(); }
 }
-function getPaletteGroupId(paletteId) {
-  return groups.find(g => g.paletteIds.includes(paletteId))?.id || null;
+function exportGroupAsJson(id) {
+  const g = groups.find(g => g.id === id);
+  if (!g) return;
+  const groupPalettes = g.paletteIds.map(id => palettes.find(p => p.id === id)).filter(Boolean);
+  if (!groupPalettes.length) { showToast('Group has no palettes'); return; }
+  const content = JSON.stringify({
+    name: g.name,
+    palettes: groupPalettes.map(p => ({ name: p.name, colors: p.colors.map(c => c.toUpperCase()) }))
+  }, null, 2);
+  downloadFile(content, `${g.name.replace(/\s+/g, '-')}.json`, 'application/json');
+  showToast('Group exported');
 }
-function assignPaletteToGroup(paletteId, groupId) {
-  groups.forEach(g => { g.paletteIds = g.paletteIds.filter(id => id !== paletteId); });
-  if (groupId) {
-    const g = groups.find(g => g.id === groupId);
-    if (g) g.paletteIds.push(paletteId);
-  }
+function getPaletteGroupIds(paletteId) {
+  return groups.filter(g => g.paletteIds.includes(paletteId)).map(g => g.id);
+}
+function togglePaletteGroup(paletteId, groupId, add) {
+  const g = groups.find(g => g.id === groupId);
+  if (!g) return;
+  if (add && !g.paletteIds.includes(paletteId)) g.paletteIds.push(paletteId);
+  else if (!add) g.paletteIds = g.paletteIds.filter(id => id !== paletteId);
   saveGroups();
   renderPalettes();
   refreshPaletteSelect();
@@ -1236,14 +1297,39 @@ function renderGroupSection(g) {
   count.className = 'group-count';
   count.textContent = `${groupPalettes.length} palette${groupPalettes.length !== 1 ? 's' : ''}`;
 
-  const delBtn = document.createElement('button');
-  delBtn.className = 'icon-btn'; delBtn.textContent = 'Delete';
-  delBtn.onclick = () => deleteGroup(g.id);
+  // Group ⋯ menu
+  const menuWrap = document.createElement('div');
+  menuWrap.className = 'palette-menu-wrap';
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'palette-menu-btn'; menuBtn.title = 'Group options'; menuBtn.textContent = '⋯';
+  menuBtn.onclick = (e) => toggleMenu(`gmenu-${g.id}`, e);
+  const dropdown = document.createElement('div');
+  dropdown.className = 'palette-menu-dropdown'; dropdown.id = `gmenu-${g.id}`;
+  dropdown.onclick = (e) => e.stopPropagation();
+
+  const exportLbl = document.createElement('div');
+  exportLbl.className = 'menu-section-label'; exportLbl.textContent = 'Export';
+  dropdown.appendChild(exportLbl);
+
+  const exportItem = document.createElement('button');
+  exportItem.className = 'menu-item'; exportItem.textContent = 'Export group as JSON';
+  exportItem.onclick = () => { exportGroupAsJson(g.id); closeAllMenus(); };
+  dropdown.appendChild(exportItem);
+
+  const div1 = document.createElement('div'); div1.className = 'menu-divider';
+  dropdown.appendChild(div1);
+
+  const deleteItem = document.createElement('button');
+  deleteItem.className = 'menu-item danger'; deleteItem.textContent = 'Delete group';
+  deleteItem.onclick = () => { closeAllMenus(); deleteGroup(g.id); };
+  dropdown.appendChild(deleteItem);
+
+  menuWrap.appendChild(menuBtn); menuWrap.appendChild(dropdown);
 
   hdr.appendChild(toggle);
   hdr.appendChild(nameWrap);
   hdr.appendChild(count);
-  hdr.appendChild(delBtn);
+  hdr.appendChild(menuWrap);
   section.appendChild(hdr);
 
   if (!g.collapsed) {
@@ -1252,7 +1338,7 @@ function renderGroupSection(g) {
     if (!groupPalettes.length) {
       const hint = document.createElement('div');
       hint.className = 'group-empty';
-      hint.textContent = 'No palettes yet — assign one using the group dropdown on any palette.';
+      hint.textContent = 'No palettes yet — use the ⋯ menu on any palette to assign it here.';
       body.appendChild(hint);
     } else {
       groupPalettes.forEach(p => body.appendChild(renderPaletteCard(p)));
@@ -1279,10 +1365,7 @@ function deletePalette(id) {
   showModal('Delete Palette', `Delete "${p?.name}"? This cannot be undone.`, ()=>{
     palettes = palettes.filter(p=>p.id!==id);
     groups.forEach(g => { g.paletteIds = g.paletteIds.filter(pid => pid !== id); });
-    savePalettes(); saveGroups();
-    renderPalettes();
-    refreshPaletteSelect();
-    closeModal();
+    savePalettes(); saveGroups(); renderPalettes(); refreshPaletteSelect(); closeModal();
   });
 }
 function renamePalette(id, name) {
@@ -1314,19 +1397,22 @@ function refreshPaletteSelect() {
   const sel = document.getElementById('paletteSelect');
   const prev = sel.value;
   sel.innerHTML = '<option value="">— Add to palette —</option>';
+  const listed = new Set();
   groups.forEach(g => {
     const gPalettes = g.paletteIds.map(id => palettes.find(p => p.id === id)).filter(Boolean);
     if (!gPalettes.length) return;
     const optgroup = document.createElement('optgroup');
     optgroup.label = g.name;
     gPalettes.forEach(p => {
+      if (listed.has(p.id)) return;
+      listed.add(p.id);
       const o = document.createElement('option');
       o.value = p.id; o.textContent = p.name;
       optgroup.appendChild(o);
     });
-    sel.appendChild(optgroup);
+    if (optgroup.children.length) sel.appendChild(optgroup);
   });
-  const ungrouped = palettes.filter(p => !getPaletteGroupId(p.id));
+  const ungrouped = palettes.filter(p => getPaletteGroupIds(p.id).length === 0);
   if (ungrouped.length) {
     if (groups.length) {
       const optgroup = document.createElement('optgroup');
@@ -1345,92 +1431,114 @@ function refreshPaletteSelect() {
       });
     }
   }
-  if(prev) sel.value=prev;
+  if (prev) sel.value = prev;
 }
 function renderPaletteCard(p) {
   const card = document.createElement('div');
-  card.className='palette-card';
+  card.className = 'palette-card';
+
   const hdr = document.createElement('div');
-  hdr.className='palette-card-header';
+  hdr.className = 'palette-card-header';
+
   const nameWrap = document.createElement('div');
   nameWrap.className = 'palette-name-wrap';
   const nameEl = document.createElement('input');
-  nameEl.className='palette-name'; nameEl.type='text';
-  nameEl.value=p.name; nameEl.maxLength=30;
-  nameEl.onchange=()=>renamePalette(p.id, nameEl.value||p.name);
-  nameEl.onkeydown=(e)=>{ if(e.key==='Enter') nameEl.blur(); };
+  nameEl.className = 'palette-name'; nameEl.type = 'text';
+  nameEl.value = p.name; nameEl.maxLength = 30;
+  nameEl.onchange = () => renamePalette(p.id, nameEl.value || p.name);
+  nameEl.onkeydown = (e) => { if (e.key === 'Enter') nameEl.blur(); };
   const renameBtn = document.createElement('button');
   renameBtn.className = 'rename-btn'; renameBtn.title = 'Rename palette'; renameBtn.textContent = '✎';
   renameBtn.onclick = () => { nameEl.focus(); nameEl.select(); };
   nameWrap.appendChild(nameEl);
   nameWrap.appendChild(renameBtn);
-  const acts = document.createElement('div');
-  acts.className='palette-card-actions';
+
+  // ⋯ menu
+  const menuWrap = document.createElement('div');
+  menuWrap.className = 'palette-menu-wrap';
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'palette-menu-btn'; menuBtn.title = 'More options'; menuBtn.textContent = '⋯';
+  menuBtn.onclick = (e) => toggleMenu(`pmenu-${p.id}`, e);
+  const dropdown = document.createElement('div');
+  dropdown.className = 'palette-menu-dropdown'; dropdown.id = `pmenu-${p.id}`;
+  dropdown.onclick = (e) => e.stopPropagation();
+
   if (groups.length) {
-    const groupSel = document.createElement('select');
-    groupSel.className = 'group-assign-select';
-    groupSel.title = 'Assign to group';
-    const noOpt = document.createElement('option');
-    noOpt.value = ''; noOpt.textContent = 'No group';
-    groupSel.appendChild(noOpt);
+    const groupLbl = document.createElement('div');
+    groupLbl.className = 'menu-section-label'; groupLbl.textContent = 'Groups';
+    dropdown.appendChild(groupLbl);
+    const currentGroupIds = getPaletteGroupIds(p.id);
     groups.forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = g.id; opt.textContent = g.name;
-      groupSel.appendChild(opt);
+      const row = document.createElement('div');
+      row.className = 'menu-group-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.id = `chk-${p.id}-${g.id}`;
+      cb.checked = currentGroupIds.includes(g.id);
+      cb.onchange = () => togglePaletteGroup(p.id, g.id, cb.checked);
+      const lbl = document.createElement('label');
+      lbl.htmlFor = `chk-${p.id}-${g.id}`; lbl.textContent = g.name;
+      row.appendChild(cb); row.appendChild(lbl);
+      dropdown.appendChild(row);
     });
-    const currentGroupId = getPaletteGroupId(p.id);
-    if (currentGroupId) groupSel.value = currentGroupId;
-    groupSel.onchange = () => assignPaletteToGroup(p.id, groupSel.value);
-    acts.appendChild(groupSel);
+    const d1 = document.createElement('div'); d1.className = 'menu-divider';
+    dropdown.appendChild(d1);
   }
-  const copyBtn = document.createElement('button');
-  copyBtn.className='icon-btn copy-icon'; copyBtn.textContent='Copy HEX';
-  copyBtn.onclick=()=>copyPaletteHex(p.id);
-  const csvBtn = document.createElement('button');
-  csvBtn.className='icon-btn export-icon'; csvBtn.textContent='CSV'; csvBtn.title='Export as CSV';
-  csvBtn.onclick=()=>exportPaletteAsCsv(p.id);
-  const jsonBtn = document.createElement('button');
-  jsonBtn.className='icon-btn export-icon'; jsonBtn.textContent='JSON'; jsonBtn.title='Export as JSON';
-  jsonBtn.onclick=()=>exportPaletteAsJson(p.id);
-  const delBtn = document.createElement('button');
-  delBtn.className='icon-btn'; delBtn.textContent='Delete';
-  delBtn.onclick=()=>deletePalette(p.id);
-  acts.appendChild(copyBtn);
-  acts.appendChild(csvBtn);
-  acts.appendChild(jsonBtn);
-  acts.appendChild(delBtn);
-  hdr.appendChild(nameWrap);
-  hdr.appendChild(acts);
+
+  const exportLbl = document.createElement('div');
+  exportLbl.className = 'menu-section-label'; exportLbl.textContent = 'Export';
+  dropdown.appendChild(exportLbl);
+
+  [
+    ['Copy HEX values',  () => { copyPaletteHex(p.id);      closeAllMenus(); }],
+    ['Download CSV',     () => { exportPaletteAsCsv(p.id);  closeAllMenus(); }],
+    ['Download JSON',    () => { exportPaletteAsJson(p.id); closeAllMenus(); }],
+  ].forEach(([label, fn]) => {
+    const item = document.createElement('button');
+    item.className = 'menu-item'; item.textContent = label; item.onclick = fn;
+    dropdown.appendChild(item);
+  });
+
+  const d2 = document.createElement('div'); d2.className = 'menu-divider';
+  dropdown.appendChild(d2);
+
+  const deleteItem = document.createElement('button');
+  deleteItem.className = 'menu-item danger'; deleteItem.textContent = 'Delete palette';
+  deleteItem.onclick = () => { closeAllMenus(); deletePalette(p.id); };
+  dropdown.appendChild(deleteItem);
+
+  menuWrap.appendChild(menuBtn); menuWrap.appendChild(dropdown);
+  hdr.appendChild(nameWrap); hdr.appendChild(menuWrap);
   card.appendChild(hdr);
+
   const sw = document.createElement('div');
-  sw.className='palette-swatches';
-  if(!p.colors.length){
-    const hint=document.createElement('span');
-    hint.style.cssText='font-family:Fira Code,monospace;font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;align-self:center;';
-    hint.textContent='Pick a color, then add it here';
+  sw.className = 'palette-swatches';
+  if (!p.colors.length) {
+    const hint = document.createElement('span');
+    hint.style.cssText = 'font-family:Fira Code,monospace;font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;align-self:center;';
+    hint.textContent = 'Pick a color, then add it here';
     sw.appendChild(hint);
   } else {
-    p.colors.forEach((hex,i)=>{
-      const s=document.createElement('div');
-      s.className='p-swatch'; s.style.background=hex;
-      const tip=document.createElement('div');
-      tip.className='hex-tip'; tip.textContent=hex.toUpperCase();
+    p.colors.forEach((hex, i) => {
+      const s = document.createElement('div');
+      s.className = 'p-swatch'; s.style.background = hex;
+      const tip = document.createElement('div');
+      tip.className = 'hex-tip'; tip.textContent = hex.toUpperCase();
       s.appendChild(tip);
-      const x=document.createElement('div');
-      x.className='remove-x'; x.textContent='×';
-      x.onclick=(e)=>{e.stopPropagation();removeColorFromPalette(p.id,i);};
+      const x = document.createElement('div');
+      x.className = 'remove-x'; x.textContent = '×';
+      x.onclick = (e) => { e.stopPropagation(); removeColorFromPalette(p.id, i); };
       s.appendChild(x);
-      s.onclick=()=>{setColor(hex);switchTab('picker');};
+      s.onclick = () => { setColor(hex); switchTab('picker'); };
       sw.appendChild(s);
     });
   }
   card.appendChild(sw);
-  if(p.colors.length){
-    const bar=document.createElement('div');
-    bar.className='palette-bar';
-    p.colors.forEach(hex=>{
-      const seg=document.createElement('div');
-      seg.className='palette-bar-seg'; seg.style.background=hex;
+  if (p.colors.length) {
+    const bar = document.createElement('div');
+    bar.className = 'palette-bar';
+    p.colors.forEach(hex => {
+      const seg = document.createElement('div');
+      seg.className = 'palette-bar-seg'; seg.style.background = hex;
       bar.appendChild(seg);
     });
     card.appendChild(bar);
@@ -1440,16 +1548,15 @@ function renderPaletteCard(p) {
 function renderPalettes() {
   const list  = document.getElementById('paletteList');
   const empty = document.getElementById('palettesEmpty');
-  list.innerHTML='';
-  if(!palettes.length && !groups.length){ empty.style.display='block'; return; }
-  empty.style.display='none';
+  list.innerHTML = '';
+  if (!palettes.length && !groups.length) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
   groups.forEach(g => list.appendChild(renderGroupSection(g)));
-  const ungrouped = palettes.filter(p => !getPaletteGroupId(p.id));
+  const ungrouped = palettes.filter(p => getPaletteGroupIds(p.id).length === 0);
   if (ungrouped.length) {
     if (groups.length) {
       const lbl = document.createElement('div');
-      lbl.className = 'ungrouped-label';
-      lbl.textContent = 'Ungrouped';
+      lbl.className = 'ungrouped-label'; lbl.textContent = 'Ungrouped';
       list.appendChild(lbl);
     }
     ungrouped.forEach(p => list.appendChild(renderPaletteCard(p)));
