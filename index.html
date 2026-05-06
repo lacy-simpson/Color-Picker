@@ -175,12 +175,15 @@
     background: var(--border);
   }
   .zone-toggle {
-    background: none; border: none; color: var(--label);
-    cursor: pointer; font-size: 9px; padding: 2px 4px;
-    flex-shrink: 0; transition: color 0.15s, transform 0.2s;
+    background: var(--s2); border: 1px solid var(--border2);
+    color: var(--muted2);
+    cursor: pointer; font-size: 10px; padding: 3px 8px;
+    border-radius: 5px;
+    flex-shrink: 0; transition: color 0.15s, transform 0.2s, border-color 0.15s;
     font-family: 'Fira Code', monospace;
+    line-height: 1;
   }
-  .zone-toggle:hover { color: var(--text); }
+  .zone-toggle:hover { color: var(--text); border-color: var(--picked); }
   .zone-collapsed .zone-toggle { transform: rotate(-90deg); }
 
   /* ── Swatch Hero ── */
@@ -517,8 +520,57 @@
   }
   .h-swatch:hover .hex-tip { opacity: 1; }
 
+  /* ── Palette actions ── */
+  .palette-actions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .compact-btn {
+    padding: 6px 14px;
+    background: var(--s2);
+    border: 1px solid var(--border2);
+    color: var(--muted2);
+    border-radius: 7px;
+    font-family: 'Fira Code', monospace;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .compact-btn:hover { border-color: var(--picked); color: var(--picked); }
+  .compact-btn.active { border-color: var(--picked); color: var(--picked); }
+  .add-form {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 12px;
+    background: var(--s1);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .add-form.open { display: flex; }
+  .add-type-row { display: flex; gap: 6px; }
+  .type-pill {
+    padding: 4px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 20px;
+    font-family: 'Fira Code', monospace;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .type-pill.active { background: var(--s3); border-color: var(--picked); color: var(--picked); }
+  .add-input-row { display: flex; gap: 8px; }
+
   /* ── Groups ── */
-  .new-group-form { display: flex; gap: 8px; margin-bottom: 8px; }
+  .new-group-form { display: none; }
   .group-section { margin-bottom: 12px; }
   .group-header {
     display: flex; align-items: center; gap: 8px;
@@ -529,11 +581,13 @@
   }
   .group-header.expanded { border-radius: 10px 10px 0 0; }
   .group-toggle {
-    background: none; border: none; color: var(--muted);
-    cursor: pointer; font-size: 10px; padding: 2px 4px;
-    flex-shrink: 0; line-height: 1; transition: color 0.15s;
+    background: var(--s3); border: 1px solid var(--border2);
+    color: var(--muted2);
+    cursor: pointer; font-size: 10px; padding: 3px 8px;
+    border-radius: 5px;
+    flex-shrink: 0; line-height: 1; transition: color 0.15s, border-color 0.15s;
   }
-  .group-toggle:hover { color: var(--text); }
+  .group-toggle:hover { color: var(--text); border-color: var(--picked); }
   .group-name-input {
     font-family: 'Fira Code', monospace; font-size: 12px; font-weight: 700;
     color: var(--text); border: 1px solid transparent; background: transparent;
@@ -605,7 +659,7 @@
   .menu-group-row label { font-size: 11px; color: var(--muted2); cursor: pointer; font-family: 'Fira Code', monospace; }
 
   /* ── Palettes ── */
-  .new-palette-form { display: flex; gap: 8px; margin-bottom: 20px; }
+  .new-palette-form { display: none; }
   .text-input {
     flex: 1;
     background: var(--s1); border: 1px solid var(--border);
@@ -750,31 +804,7 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ── Import / Export */
-  .import-palette-btn {
-    width: 100%;
-    padding: 11px;
-    background: transparent;
-    color: var(--muted);
-    border: 1px dashed rgba(255,255,255,0.1);
-    border-radius: 8px;
-    font-family: 'Fira Code', monospace;
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s, border-style 0.15s, background 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 20px;
-  }
-  .import-palette-btn:hover {
-    border-style: solid;
-    border-color: var(--border2);
-    color: var(--muted2);
-    background: var(--s1);
-  }
+  .import-palette-btn { display: none; }
   .icon-btn.export-icon:hover { color: var(--muted2); }
 
   .import-modal { max-width: 400px !important; }
@@ -994,17 +1024,28 @@
     <button class="zone-toggle" id="palettesToggle">▼</button>
   </div>
   <div id="zone-palettes">
+    <div class="palette-actions-row">
+      <button class="compact-btn" id="addBtn" onclick="toggleAddForm()">+ Add</button>
+      <button class="compact-btn" onclick="openImportModal()">↑ Import</button>
+    </div>
+    <div class="add-form" id="addForm">
+      <div class="add-type-row">
+        <button class="type-pill active" id="typePalette" onclick="setAddType('palette')">Palette</button>
+        <button class="type-pill" id="typeGroup" onclick="setAddType('group')">Group</button>
+      </div>
+      <div class="add-input-row">
+        <input class="text-input" type="text" id="addName" placeholder="Palette name…" maxlength="30"
+          onkeydown="if(event.key==='Enter')submitAdd()">
+        <button class="create-btn" onclick="submitAdd()">Create</button>
+      </div>
+    </div>
+    <!-- kept for legacy JS refs -->
     <div class="new-group-form">
-      <input class="text-input" type="text" id="newGroupName" placeholder="New group name…" maxlength="30"
-        onkeydown="if(event.key==='Enter')createGroup()">
-      <button class="create-btn" onclick="createGroup()">+ Group</button>
+      <input type="hidden" id="newGroupName">
     </div>
     <div class="new-palette-form">
-      <input class="text-input" type="text" id="newPaletteName" placeholder="New palette name…" maxlength="30"
-        onkeydown="if(event.key==='Enter')createPalette()">
-      <button class="create-btn" onclick="createPalette()">+ Palette</button>
+      <input type="hidden" id="newPaletteName">
     </div>
-    <button class="import-palette-btn" onclick="openImportModal()">↑ Import Palette</button>
     <div id="paletteList"></div>
     <div class="empty-state" id="palettesEmpty">No palettes yet.<br>Create a group or palette above.</div>
   </div>
@@ -1956,6 +1997,46 @@ function exportPaletteAsJson(id) {
   const content = JSON.stringify({ name: p.name, colors: p.colors.map(c=>c.toUpperCase()) }, null, 2);
   downloadFile(content, `${p.name.replace(/\s+/g,'-')}.json`, 'application/json');
   showToast('Exported as JSON');
+}
+
+// ── Add form (unified group/palette creation)
+let addType = 'palette';
+function toggleAddForm() {
+  const form = document.getElementById('addForm');
+  const btn  = document.getElementById('addBtn');
+  const open = form.classList.contains('open');
+  form.classList.toggle('open', !open);
+  btn.classList.toggle('active', !open);
+  btn.textContent = open ? '+ Add' : '× Add';
+  if (!open) document.getElementById('addName').focus();
+}
+function setAddType(type) {
+  addType = type;
+  document.getElementById('typePalette').classList.toggle('active', type === 'palette');
+  document.getElementById('typeGroup').classList.toggle('active', type === 'group');
+  document.getElementById('addName').placeholder = type === 'group' ? 'Group name…' : 'Palette name…';
+}
+function submitAdd() {
+  const input = document.getElementById('addName');
+  const name  = input.value.trim();
+  if (!name) { input.focus(); return; }
+  if (addType === 'group') {
+    groups.push({ id: Date.now().toString(36), name, paletteIds: [], collapsed: false });
+    saveGroups();
+    showToast('Group created');
+  } else {
+    palettes.push({ id: Date.now().toString(36), name, colors: [] });
+    savePalettes();
+    showToast('Palette created');
+  }
+  input.value = '';
+  renderPalettes();
+  refreshPaletteSelect();
+  const form = document.getElementById('addForm');
+  const btn  = document.getElementById('addBtn');
+  form.classList.remove('open');
+  btn.classList.remove('active');
+  btn.textContent = '+ Add';
 }
 
 // ── Palettes collapse
