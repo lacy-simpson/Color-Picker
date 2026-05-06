@@ -15,8 +15,9 @@
     --border: rgba(255,255,255,0.07);
     --border2: rgba(255,255,255,0.13);
     --text: #edeaf4;
-    --muted: rgba(237,234,244,0.3);
-    --muted2: rgba(237,234,244,0.55);
+    --muted: rgba(237,234,244,0.55);
+    --label: rgba(237,234,244,0.4);
+    --muted2: rgba(237,234,244,0.75);
     --red: #ff4545;
     --picked: #c6ff4e;
     --picked-rgb: 198, 255, 78;
@@ -237,7 +238,7 @@
   .l-label {
     font-size: 8px;
     letter-spacing: 0.16em;
-    color: var(--muted);
+    color: var(--label);
     text-transform: uppercase;
   }
   #lightnessCanvas {
@@ -307,7 +308,7 @@
   .value-label {
     font-size: 7px;
     letter-spacing: 0.18em;
-    color: var(--muted);
+    color: var(--label);
     text-transform: uppercase;
     margin-bottom: 5px;
   }
@@ -417,7 +418,7 @@
   }
   .section-title {
     font-size: 8px; letter-spacing: 0.16em;
-    color: var(--muted); text-transform: uppercase;
+    color: var(--label); text-transform: uppercase;
   }
   .section-actions { display: flex; gap: 8px; }
   .link-btn {
@@ -502,15 +503,26 @@
     justify-content: space-between;
     margin-bottom: 12px; gap: 8px;
   }
+  .palette-name-wrap {
+    display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
+  }
   .palette-name {
     font-family: 'Fira Code', monospace;
     font-size: 11px; font-weight: 700; color: var(--text);
-    border: none; background: transparent;
-    outline: none; width: 100%; padding: 2px 0;
-    border-bottom: 1px solid transparent;
-    transition: border-color 0.15s;
+    border: 1px solid transparent; background: transparent;
+    outline: none; width: 100%; padding: 2px 6px;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
   }
-  .palette-name:focus { border-bottom-color: var(--border2); }
+  .palette-name:hover { border-color: var(--border); background: var(--s2); }
+  .palette-name:focus { border-color: var(--border2); background: var(--s2); }
+  .rename-btn {
+    background: none; border: none; color: var(--label);
+    cursor: pointer; padding: 2px 5px; border-radius: 4px;
+    font-size: 12px; flex-shrink: 0; line-height: 1;
+    transition: color 0.15s;
+  }
+  .rename-btn:hover { color: var(--picked); }
   .palette-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
   .icon-btn {
     background: none; border: none; color: var(--muted);
@@ -768,6 +780,14 @@
   <!-- PICKER -->
   <div class="panel active" id="panel-picker">
 
+    <div class="unsupported" id="unsupported">
+      ⚠ EyeDropper API not supported. Use Chrome 95+ or Edge 95+.
+    </div>
+
+    <button class="pick-btn" id="pickBtn" onclick="triggerPick()">
+      <span>◎</span> Pick from Screen
+    </button>
+
     <div class="swatch-hero" id="mainSwatch">
       <div class="swatch-hero-hex" id="swatchHex"></div>
     </div>
@@ -812,14 +832,6 @@
         <div class="copied-flash" id="flash-hsl"></div>
       </div>
     </div>
-
-    <div class="unsupported" id="unsupported">
-      ⚠ EyeDropper API not supported. Use Chrome 95+ or Edge 95+.
-    </div>
-
-    <button class="pick-btn" id="pickBtn" onclick="triggerPick()">
-      <span>◎</span> Pick from Screen
-    </button>
 
     <div class="add-palette-row">
       <select class="palette-select" id="paletteSelect">
@@ -1157,11 +1169,24 @@ function renderPalettes() {
     card.className='palette-card';
     const hdr = document.createElement('div');
     hdr.className='palette-card-header';
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'palette-name-wrap';
+
     const nameEl = document.createElement('input');
     nameEl.className='palette-name'; nameEl.type='text';
     nameEl.value=p.name; nameEl.maxLength=30;
-    nameEl.title='Click to rename';
     nameEl.onchange=()=>renamePalette(p.id, nameEl.value||p.name);
+    nameEl.onkeydown=(e)=>{ if(e.key==='Enter') nameEl.blur(); };
+
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'rename-btn';
+    renameBtn.title = 'Rename palette';
+    renameBtn.textContent = '✎';
+    renameBtn.onclick = () => { nameEl.focus(); nameEl.select(); };
+
+    nameWrap.appendChild(nameEl);
+    nameWrap.appendChild(renameBtn);
+
     const acts = document.createElement('div');
     acts.className='palette-card-actions';
     const copyBtn = document.createElement('button');
@@ -1186,7 +1211,7 @@ function renderPalettes() {
     acts.appendChild(csvBtn);
     acts.appendChild(jsonBtn);
     acts.appendChild(delBtn);
-    hdr.appendChild(nameEl);
+    hdr.appendChild(nameWrap);
     hdr.appendChild(acts);
     card.appendChild(hdr);
     const sw = document.createElement('div');
