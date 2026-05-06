@@ -102,49 +102,86 @@
     text-transform: uppercase;
   }
 
+  /* ── Two-column picker + history layout ── */
+  .picker-history-layout {
+    display: grid;
+    grid-template-columns: 1fr 88px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  /* ── History sidebar ── */
+  .history-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 2px;
+  }
+  .history-sidebar-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .history-sidebar-actions {
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+  }
+  .history-sidebar-actions .link-btn {
+    font-size: 9px;
+    padding: 1px 2px;
+  }
+  .history-sidebar-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 36px);
+    gap: 7px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    max-height: 480px;
+  }
+  .history-sidebar-grid::-webkit-scrollbar { display: none; }
+  .history-sidebar-grid .h-swatch { flex-shrink: 0; }
+  .history-empty {
+    font-size: 9px;
+    color: var(--label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 12px 0;
+  }
+
   /* ── Zone dividers ── */
   .zone-divider {
     display: flex;
     align-items: center;
     gap: 12px;
     margin: 28px 0 16px;
+    cursor: pointer;
+    user-select: none;
   }
+  .zone-divider:hover .zone-label { color: var(--muted); }
   .zone-label {
     font-size: 9px;
     letter-spacing: 0.18em;
     color: var(--label);
     text-transform: uppercase;
     flex-shrink: 0;
+    transition: color 0.15s;
   }
   .zone-line {
     flex: 1;
     height: 1px;
     background: var(--border);
   }
-  .zone-actions {
-    display: none;
-    gap: 8px;
-    flex-shrink: 0;
+  .zone-toggle {
+    background: none; border: none; color: var(--label);
+    cursor: pointer; font-size: 9px; padding: 2px 4px;
+    flex-shrink: 0; transition: color 0.15s, transform 0.2s;
+    font-family: 'Fira Code', monospace;
   }
-
-  /* ── History rail ── */
-  .history-rail {
-    display: flex;
-    gap: 7px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-    min-height: 36px;
-  }
-  .history-rail::-webkit-scrollbar { display: none; }
-  .history-rail .h-swatch { flex-shrink: 0; }
-  .history-empty {
-    font-size: 10px;
-    color: var(--label);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 8px 0;
-  }
+  .zone-toggle:hover { color: var(--text); }
+  .zone-collapsed .zone-toggle { transform: rotate(-90deg); }
 
   /* ── Swatch Hero ── */
   .swatch-hero {
@@ -190,8 +227,8 @@
   /* Wheel */
   .wheel-wrap {
     position: relative;
-    width: 190px;
-    height: 190px;
+    width: 160px;
+    height: 160px;
     flex-shrink: 0;
   }
   #colorWheel {
@@ -871,89 +908,90 @@
     <span class="tagline">Color Dropper</span>
   </div>
 
-  <!-- PICKER -->
-  <div id="zone-picker">
+  <!-- PICKER + HISTORY SIDEBAR -->
+  <div class="picker-history-layout">
 
-    <div class="swatch-hero" id="mainSwatch">
-      <div class="swatch-hero-hex" id="swatchHex"></div>
-    </div>
+    <div id="zone-picker">
+      <div class="swatch-hero" id="mainSwatch">
+        <div class="swatch-hero-hex" id="swatchHex"></div>
+      </div>
 
-    <!-- Color Editor — always visible -->
-    <div class="color-editor" id="colorEditor">
-      <div class="editor-top">
-        <div class="wheel-wrap" id="wheelWrap">
-          <canvas id="colorWheel" width="190" height="190"></canvas>
-          <div class="wheel-ring1"></div>
-          <div class="wheel-ring2" id="wheelRing2"></div>
-          <div class="wheel-cursor" id="wheelCursor"></div>
+      <div class="color-editor" id="colorEditor">
+        <div class="editor-top">
+          <div class="wheel-wrap" id="wheelWrap">
+            <canvas id="colorWheel" width="160" height="160"></canvas>
+            <div class="wheel-ring1"></div>
+            <div class="wheel-ring2" id="wheelRing2"></div>
+            <div class="wheel-cursor" id="wheelCursor"></div>
+          </div>
+          <div class="l-wrap">
+            <div class="l-label">L</div>
+            <canvas id="lightnessCanvas" width="32" height="160"></canvas>
+          </div>
+          <div class="pick-col">
+            <button class="pick-btn" id="pickBtn" onclick="triggerPick()" title="Pick from Screen">
+              <span class="pick-icon">◎</span>
+            </button>
+          </div>
         </div>
-        <div class="l-wrap">
-          <div class="l-label">L</div>
-          <canvas id="lightnessCanvas" width="32" height="190"></canvas>
+        <div class="unsupported" id="unsupported">
+          ⚠ EyeDropper API not supported. Use Chrome 95+ or Edge 95+.
         </div>
-        <div class="pick-col">
-          <button class="pick-btn" id="pickBtn" onclick="triggerPick()">
-            <span class="pick-icon">◎</span>
-            <span>Pick from<br>Screen</span>
-          </button>
+        <div class="editor-bottom">
+          <div class="editor-preview" id="editorPreview"></div>
+          <input class="hex-edit-input" id="hexEditInput" type="text" maxlength="7" spellcheck="false" placeholder="#000000">
         </div>
       </div>
-      <div class="unsupported" id="unsupported">
-        ⚠ EyeDropper API not supported. Use Chrome 95+ or Edge 95+.
+
+      <div class="values-grid">
+        <div class="value-box" onclick="copyValue('hex')">
+          <div class="value-label">HEX</div>
+          <div class="value-text" id="hexVal">—</div>
+          <div class="copy-hint">copy</div>
+          <div class="copied-flash" id="flash-hex"></div>
+        </div>
+        <div class="value-box" onclick="copyValue('rgb')">
+          <div class="value-label">RGB</div>
+          <div class="value-text" id="rgbVal">—</div>
+          <div class="copy-hint">copy</div>
+          <div class="copied-flash" id="flash-rgb"></div>
+        </div>
+        <div class="value-box" onclick="copyValue('hsl')">
+          <div class="value-label">HSL</div>
+          <div class="value-text" id="hslVal">—</div>
+          <div class="copy-hint">copy</div>
+          <div class="copied-flash" id="flash-hsl"></div>
+        </div>
       </div>
-      <div class="editor-bottom">
-        <div class="editor-preview" id="editorPreview"></div>
-        <input class="hex-edit-input" id="hexEditInput" type="text" maxlength="7" spellcheck="false" placeholder="#000000">
+
+      <div class="add-palette-row">
+        <select class="palette-select" id="paletteSelect">
+          <option value="">— Add to palette —</option>
+        </select>
+        <button class="add-to-palette-btn" id="addToPaletteBtn" onclick="addCurrentToPalette()" disabled>+ Add</button>
       </div>
     </div>
 
-    <div class="values-grid">
-      <div class="value-box" onclick="copyValue('hex')">
-        <div class="value-label">HEX</div>
-        <div class="value-text" id="hexVal">—</div>
-        <div class="copy-hint">copy</div>
-        <div class="copied-flash" id="flash-hex"></div>
+    <!-- HISTORY SIDEBAR -->
+    <div class="history-sidebar">
+      <div class="history-sidebar-header">
+        <span class="zone-label">History</span>
+        <div class="history-sidebar-actions" id="historyActions">
+          <button class="link-btn" id="editHistoryBtn" onclick="toggleEditHistory()">Edit</button>
+          <button class="link-btn" onclick="confirmClearHistory()">Clear</button>
+        </div>
       </div>
-      <div class="value-box" onclick="copyValue('rgb')">
-        <div class="value-label">RGB</div>
-        <div class="value-text" id="rgbVal">—</div>
-        <div class="copy-hint">copy</div>
-        <div class="copied-flash" id="flash-rgb"></div>
-      </div>
-      <div class="value-box" onclick="copyValue('hsl')">
-        <div class="value-label">HSL</div>
-        <div class="value-text" id="hslVal">—</div>
-        <div class="copy-hint">copy</div>
-        <div class="copied-flash" id="flash-hsl"></div>
-      </div>
+      <div class="history-sidebar-grid" id="historySwatches"></div>
+      <div class="history-empty" id="historyEmpty">—</div>
     </div>
 
-    <div class="add-palette-row">
-      <select class="palette-select" id="paletteSelect">
-        <option value="">— Add to palette —</option>
-      </select>
-      <button class="add-to-palette-btn" id="addToPaletteBtn" onclick="addCurrentToPalette()" disabled>+ Add</button>
-    </div>
-  </div>
-
-  <!-- HISTORY -->
-  <div class="zone-divider">
-    <span class="zone-label">History</span>
-    <div class="zone-line"></div>
-    <div class="zone-actions" id="historyActions">
-      <button class="link-btn" id="editHistoryBtn" onclick="toggleEditHistory()">Edit</button>
-      <button class="link-btn" onclick="confirmClearHistory()">Clear</button>
-    </div>
-  </div>
-  <div id="zone-history">
-    <div class="history-rail" id="historySwatches"></div>
-    <div class="history-empty" id="historyEmpty">No colors picked yet</div>
   </div>
 
   <!-- PALETTES -->
-  <div class="zone-divider">
+  <div class="zone-divider" id="palettesZoneHeader" onclick="togglePalettes()">
     <span class="zone-label">Palettes</span>
     <div class="zone-line"></div>
+    <button class="zone-toggle" id="palettesToggle">▼</button>
   </div>
   <div id="zone-palettes">
     <div class="new-group-form">
@@ -1920,6 +1958,23 @@ function exportPaletteAsJson(id) {
   showToast('Exported as JSON');
 }
 
+// ── Palettes collapse
+let palettesCollapsed = JSON.parse(localStorage.getItem('palettes_collapsed') || 'false');
+function togglePalettes() {
+  palettesCollapsed = !palettesCollapsed;
+  localStorage.setItem('palettes_collapsed', palettesCollapsed);
+  applyPalettesCollapse();
+}
+function applyPalettesCollapse() {
+  const zone = document.getElementById('zone-palettes');
+  const btn  = document.getElementById('palettesToggle');
+  const hdr  = document.getElementById('palettesZoneHeader');
+  zone.style.display = palettesCollapsed ? 'none' : 'block';
+  btn.textContent    = palettesCollapsed ? '▶' : '▼';
+  if (palettesCollapsed) hdr.classList.add('zone-collapsed');
+  else hdr.classList.remove('zone-collapsed');
+}
+
 // ── Init
 loadAll();
 if(!window.EyeDropper){
@@ -1931,6 +1986,7 @@ renderPalettes();
 refreshPaletteSelect();
 initColorEditor();
 editorRefresh();
+applyPalettesCollapse();
 </script>
 </body>
 </html>
