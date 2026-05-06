@@ -1003,6 +1003,19 @@
     width: 22px; height: 22px; border-radius: 4px;
     border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
   }
+
+  /* ── Palette drag-to-reorder */
+  .drag-handle {
+    color: var(--label); cursor: grab;
+    font-size: 13px; padding: 2px 8px 2px 0;
+    flex-shrink: 0; line-height: 1; user-select: none;
+    transition: color 0.15s;
+  }
+  .drag-handle:hover { color: var(--muted2); }
+  .drag-handle:active { cursor: grabbing; }
+  .palette-card.dragging { opacity: 0.35; }
+  .palette-card.drop-above { box-shadow: 0 -2px 0 var(--picked), inset 0 0 0 1px transparent; }
+  .palette-card.drop-below { box-shadow: 0 2px 0 var(--picked), inset 0 0 0 1px transparent; }
 </style>
 </head>
 <body>
@@ -1628,12 +1641,67 @@ function refreshPaletteSelect() {
   }
   if (prev) sel.value = prev;
 }
+let dragState = null;
+let dragFromHandle = false;
+
 function renderPaletteCard(p, contextId = 'ungrouped') {
   const card = document.createElement('div');
   card.className = 'palette-card';
+  const inGroup = contextId !== 'ungrouped';
+
+  if (inGroup) {
+    card.draggable = true;
+    card.addEventListener('dragstart', e => {
+      if (!dragFromHandle) { e.preventDefault(); return; }
+      dragFromHandle = false;
+      dragState = { paletteId: p.id, groupId: contextId };
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+    card.addEventListener('dragend', () => {
+      dragState = null;
+      card.classList.remove('dragging');
+      document.querySelectorAll('.palette-card').forEach(c => c.classList.remove('drop-above', 'drop-below'));
+    });
+    card.addEventListener('dragover', e => {
+      if (!dragState || dragState.groupId !== contextId || dragState.paletteId === p.id) return;
+      e.preventDefault();
+      const mid = card.getBoundingClientRect().top + card.offsetHeight / 2;
+      card.classList.toggle('drop-above', e.clientY < mid);
+      card.classList.toggle('drop-below', e.clientY >= mid);
+    });
+    card.addEventListener('dragleave', e => {
+      if (!card.contains(e.relatedTarget)) card.classList.remove('drop-above', 'drop-below');
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.classList.remove('drop-above', 'drop-below');
+      if (!dragState || dragState.groupId !== contextId || dragState.paletteId === p.id) return;
+      const g = groups.find(g => g.id === contextId);
+      if (!g) return;
+      const ids = [...g.paletteIds];
+      const fromIdx = ids.indexOf(dragState.paletteId);
+      const dropAfter = e.clientY >= card.getBoundingClientRect().top + card.offsetHeight / 2;
+      ids.splice(fromIdx, 1);
+      const insertAt = ids.indexOf(p.id) + (dropAfter ? 1 : 0);
+      ids.splice(insertAt, 0, dragState.paletteId);
+      g.paletteIds = ids;
+      saveGroups();
+      renderPalettes();
+    });
+  }
 
   const hdr = document.createElement('div');
   hdr.className = 'palette-card-header';
+
+  if (inGroup) {
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.addEventListener('mousedown', () => { dragFromHandle = true; });
+    handle.addEventListener('mouseup',   () => { dragFromHandle = false; });
+    hdr.appendChild(handle);
+  }
 
   const nameWrap = document.createElement('div');
   nameWrap.className = 'palette-name-wrap';
