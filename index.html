@@ -1536,7 +1536,7 @@ function renderGroupSection(g) {
       hint.textContent = 'No palettes yet — use the ⋯ menu on any palette to assign it here.';
       body.appendChild(hint);
     } else {
-      groupPalettes.forEach(p => body.appendChild(renderPaletteCard(p)));
+      groupPalettes.forEach(p => body.appendChild(renderPaletteCard(p, g.id)));
     }
     section.appendChild(body);
   }
@@ -1629,7 +1629,7 @@ function refreshPaletteSelect() {
   }
   if (prev) sel.value = prev;
 }
-function renderPaletteCard(p) {
+function renderPaletteCard(p, contextId = 'ungrouped') {
   const card = document.createElement('div');
   card.className = 'palette-card';
 
@@ -1654,9 +1654,10 @@ function renderPaletteCard(p) {
   menuWrap.className = 'palette-menu-wrap';
   const menuBtn = document.createElement('button');
   menuBtn.className = 'palette-menu-btn'; menuBtn.title = 'More options'; menuBtn.textContent = '⋯';
-  menuBtn.onclick = (e) => toggleMenu(`pmenu-${p.id}`, e);
+  const menuId = `pmenu-${contextId}-${p.id}`;
+  menuBtn.onclick = (e) => toggleMenu(menuId, e);
   const dropdown = document.createElement('div');
-  dropdown.className = 'palette-menu-dropdown'; dropdown.id = `pmenu-${p.id}`;
+  dropdown.className = 'palette-menu-dropdown'; dropdown.id = menuId;
   dropdown.onclick = (e) => e.stopPropagation();
 
   if (groups.length) {
